@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Food Stall Billing - Supabase Version</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+</head>
+<body>
+  <div class="container">
+    <div class="header-with-logos-vertical">
+      <img src="images/logo3.jpg" alt="Left Logo" class="logo-vertical">
+      <div class="title-block">
+        <h1>Food Stall Billing Application</h1>
+        <h3 class="tagline">A SAAS Product by Tech Innovators!</h3>
+      </div>
+      <img src="images/logo2.jpg" alt="Right Logo" class="logo-vertical">
+    </div>
+
+    <!-- Login Section -->
+    <div id="login-section" class="login-form">
+      <h2>Login / Register</h2>
+      <input type="email" id="username" placeholder="Enter Email">
+      <input type="password" id="password" placeholder="Enter Password">
+      <div class="login-buttons">
+        <button onclick="login()">Login</button>
+        <button onclick="register()">Register</button>
+      </div>
+    </div>
+
+    <!-- App Section -->
+    <div id="app-section" style="display:none;">
+      <div class="top-bar">
+        <span id="user-display"></span>
+        <div class="top-bar-actions">
+          <button class="small-button" onclick="logout()">Logout</button>
+        </div>
+      </div>
+
+      <!-- Navigation Bar -->
+      <nav class="nav-bar">
+        <button onclick="showSection('menu-section')">🍽️ Menu</button>
+        <button onclick="showSection('billing-section')">💳 Sales Report</button>
+        <button onclick="showSection('settings-section')">⚙️ Settings</button>
+      </nav>
+
+      <!-- Menu Section -->
+      <section id="menu-section">
+        <h2>Menu</h2>
+        <input type="text" id="search-bar" placeholder="Search menu..." oninput="filterMenu()">
+        <div id="menu"></div>
+        <h2>Selected Items</h2>
+<table id="bill-table">
+  <thead>
+    <tr><th>Item</th>
+      <th>Qty</th>
+      <th>Rate</th>
+      <th>Total</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+<div id="total-display">Total: ₹0</div>
+    <div class="print-button-container">
+  <button onclick="prepareAndPrint()">🖨️ Print Bill</button>
+</div>
+      </section>
+  
+
+
+        
+<section id="billing-section" style="display:none;">
+
+        <!-- Export Sales Report -->
+        <div class="report-section">
+          <h3>📄 Export Sales Report</h3>
+         <div class="report-range">
+  <label>Select Range:</label>
+  <select id="report-range" onchange="handleDateRangeChange()">
+    <option value="today">Today</option>
+    <option value="7days">Last 7 Days</option>
+    <option value="30days">Last 30 Days</option>
+    <option value="custom">Custom</option>
+  </select>
+</div>
+<div id="custom-date-inputs" style="display: none;">
+  <label for="report-start">Start Date:</label>
+  <input type="date" id="report-start">
+  <label for="report-end">End Date:</label>
+  <input type="date" id="report-end">
+</div>
+<button onclick="exportSalesReport()">⬇️ Download PDF</button>
+
+        </div>
+      </section>
+
+      <!-- Settings Section -->
+      <section id="settings-section" style="display:none;">
+        <h2>Settings</h2>
+        <div class="menu-manager">
+          <h3>🍽️ Menu Manager</h3>
+          <input type="text" id="new-item-name" placeholder="Item name">
+          <input type="number" id="new-item-price" placeholder="Price">
+          <input type="file" id="new-item-image" accept="image/*">
+          <button onclick="handleAddMenuItem()">➕ Add Item</button>
+        </div>
+        <div class="menu-edit-placeholder">
+          <p style="margin-top: 20px;">🛠️ Edit/Delete options for menu items coming soon...</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    function showSection(id) {
+      document.getElementById('menu-section').style.display = 'none';
+      document.getElementById('billing-section').style.display = 'none';
+      document.getElementById('settings-section').style.display = 'none';
+      document.getElementById(id).style.display = 'block';
+    }
+
+
+ 
+
+
+    async function handleAddMenuItem() {
+      const name = document.getElementById('new-item-name').value;
+      const price = document.getElementById('new-item-price').value;
+      const file = document.getElementById('new-item-image').files[0];
+      if (!name || !price || !file) return alert('Please provide name, price, and image.');
+
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        const imageBase64 = e.target.result;
+        await addMenuItem(currentUser.id, name, parseFloat(price), imageBase64);
+        document.getElementById('new-item-name').value = '';
+        document.getElementById('new-item-price').value = '';
+        document.getElementById('new-item-image').value = '';
+        alert('Menu item added!');
+      };
+      reader.readAsDataURL(file);
+    }
+  </script>
+
+
+  <script src="supabase_app.js"></script>
+</body>
+</html>
