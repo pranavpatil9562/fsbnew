@@ -219,21 +219,21 @@ function prepareAndPrint() {
     alert("Failed to save sale: " + error.message);
   });
 }
-function printBill() {
+function printBill(current = null, fallbackAttempted = false) {
   const date = new Date();
-  const current = {
+  const currentBill = current || {
     billNo,
     date: date.toLocaleDateString(),
     time: date.toLocaleTimeString(),
     items: [...selectedItems],
     total: selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0)
   };
-  sales.push(current);
+
+  sales.push(currentBill);
   localStorage.setItem("sales", JSON.stringify(sales));
   localStorage.setItem("billNo", ++billNo);
 
-  // let printWindow = window.open("", "_blank"); // earlier this print method was used,
-  let printWindow = window.open('', '', 'width=400,height=600');// this prints bill in chrome tab of given size
+  let printWindow = window.open('', '', 'width=400,height=600');
   let billHTML = `
     <html>
     <head><title>Print Bill</title></head>
@@ -244,17 +244,17 @@ function printBill() {
     Shop no.4,Patil Complex,
              Bidar
 -------------------------------
-Bill No:ATC-${current.billNo}
-Date,Time:${current.date},${current.time}
+Bill No:ATC-${currentBill.billNo}
+Date,Time:${currentBill.date},${currentBill.time}
 -------------------------------
 Item       Qty  Rate  Total
-${current.items.map(i =>
+${currentBill.items.map(i =>
   `${i.name.padEnd(10)} ${i.qty.toString().padEnd(4)} ₹${i.price.toString().padEnd(5)} ₹${(i.price * i.qty)}`
 ).join('\n')}
 -------------------------------
-Total Items: ${current.items.length},Total Qty:${current.items.reduce((sum, i) => sum + i.qty, 0)}
+Total Items: ${currentBill.items.length},Total Qty:${currentBill.items.reduce((sum, i) => sum + i.qty, 0)}
 -------------------------------
-Grand Total: ₹${current.total}
+Grand Total: ₹${currentBill.total}
 -------------------------------
     THANK YOU! VISIT AGAIN
 -------------------------------
@@ -262,14 +262,21 @@ Grand Total: ₹${current.total}
     </body>
     </html>`;
 
-  printBillRaw(current).then(() => {
-    saveSale();
-    selectedItems = [];
-    renderBill();
-    renderMenu();
-    updateDashboard();
-  });
+  printWindow.document.write(billHTML);
+  printWindow.document.close();
+
+  // Only call printBillRaw if it wasn't already attempted
+  if (!fallbackAttempted) {
+    printBillRaw(currentBill, true);
+  }
+
+  saveSale();
+  selectedItems = [];
+  renderBill();
+  renderMenu();
+  updateDashboard();
 }
+
 function buildEscPosCommands(current) {
     const { billNo, date, time, items, total } = current;
     let cmds = "";
@@ -294,55 +301,58 @@ function buildEscPosCommands(current) {
     cmds += "\x1D\x56\x41";
     return cmds;
   }
- async function printBillRaw(current) {
-    const raw = buildEscPosCommands(current);
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(raw);
+async function printBillRaw(current, fallbackAttempted = false) {
+  const raw = buildEscPosCommands(current);
+  const encoder = new TextEncoder();
+  const encoded = encoder.encode(raw);
 
-    // QZ Tray (desktop)
-    if (window.qz) {
-      try {
-        await qz.api.connect();
-        const cfg = qz.configs.create();
-        await qz.print(cfg, [{ type: 'raw', format: 'command', data: raw }]);
-        await qz.api.disconnect();
-        return;
-      } catch (err) {
-        console.warn("QZ Tray failed:", err);
-      }
+  // QZ Tray
+  if (window.qz) {
+    try {
+      await qz.api.connect();
+      const cfg = qz.configs.create();
+      await qz.print(cfg, [{ type: 'raw', format: 'command', data: raw }]);
+      await qz.api.disconnect();
+      return;
+    } catch (err) {
+      console.warn("QZ Tray failed:", err);
     }
-
-    // Web Bluetooth (mobile)
-    if (navigator.bluetooth) {
-      try {
-        if (!printerDevice || !printerCharacteristic) {
-          printerDevice = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
-          });
-          const server = await printerDevice.gatt.connect();
-          const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-          printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-        }
-
-        const chunkSize = 512;
-        for (let i = 0; i < encoded.length; i += chunkSize) {
-          const chunk = encoded.slice(i, i + chunkSize);
-          await printerCharacteristic.writeValue(chunk);
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-        return;
-      } catch (err) {
-        console.warn("Web Bluetooth failed:", err);
-        printerDevice = null;
-        printerCharacteristic = null;
-      }
-    }
-
-    // Fallback to browser print
-    alert("Direct print unavailable—opening browser print dialog.");
-  printBill(current);
   }
+
+  // Web Bluetooth
+  if (navigator.bluetooth) {
+    try {
+      if (!printerDevice || !printerCharacteristic) {
+        printerDevice = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+        });
+        const server = await printerDevice.gatt.connect();
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+      }
+
+      const chunkSize = 512;
+      for (let i = 0; i < encoded.length; i += chunkSize) {
+        const chunk = encoded.slice(i, i + chunkSize);
+        await printerCharacteristic.writeValue(chunk);
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      return;
+    } catch (err) {
+      console.warn("Web Bluetooth failed:", err);
+      printerDevice = null;
+      printerCharacteristic = null;
+    }
+  }
+
+  // Prevent infinite loop by checking fallbackAttempted
+  if (!fallbackAttempted) {
+    alert("Direct print unavailable—opening browser print dialog.");
+    printBill(current, true); // mark as fallback
+  }
+}
+
 function handleDateRangeChange() {
   const range = document.getElementById('report-range').value;
   const customInputs = document.getElementById('custom-date-inputs');
