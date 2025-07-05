@@ -7,17 +7,23 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let items = [];
 let selectedItems = [];
-let billNo = 1;
+let billNo = parseInt(localStorage.getItem("billNo") || "1"); // Fixed: Load from localStorage
 let sales = JSON.parse(localStorage.getItem("sales") || "[]");
 const { jsPDF } = window.jspdf;
-
-
 
 window.onload = async function () {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
     showApp();
+
+    // Load from localStorage first for speed
+    const cachedItems = JSON.parse(localStorage.getItem("menuItems") || "[]");
+    if (cachedItems.length > 0) {
+      items = cachedItems;
+      renderMenu();
+    }
+
     await loadMenuFromDB();
   } else {
     showLogin();
@@ -63,10 +69,15 @@ async function logout() {
 
 async function loadMenuFromDB() {
   const { data, error } = await supabaseClient.from("user_menu").select("*").eq("user_id", currentUser.id);
-  if (error) return console.error("Menu load error:", error);
+  if (error) {
+    alert("Failed to load menu from database.");
+    return console.error("Menu load error:", error);
+  }
   items = data;
+  localStorage.setItem("menuItems", JSON.stringify(items)); // Save to localStorage
   renderMenu();
 }
+
 
 async function addMenuItem(userId, name, price, image) {
   const { error } = await supabaseClient.from("user_menu").insert([
@@ -263,7 +274,7 @@ Grand Total: ₹${currentBill.total}
     </html>`;
 
   printWindow.document.write(billHTML);
-  printWindow.document.close();
+  // printWindow.document.close();
 
   // Only call printBillRaw if it wasn't already attempted
   if (!fallbackAttempted) {
@@ -358,87 +369,7 @@ function handleDateRangeChange() {
   const customInputs = document.getElementById('custom-date-inputs');
   customInputs.style.display = (range === 'custom') ? 'block' : 'none';
 }
-// async function exportSalesReport() {
-//   const range = document.getElementById('report-range').value;
-//   let startDate, endDate;
 
-//   const today = new Date();
-//   endDate = new Date(today.setHours(23, 59, 59, 999));
-
-//   if (range === 'today') {
-//     startDate = new Date();
-//     startDate.setHours(0, 0, 0, 0);
-//   } else if (range === '7days') {
-//     startDate = new Date();
-//     startDate.setDate(startDate.getDate() - 6);
-//     startDate.setHours(0, 0, 0, 0);
-//   } else if (range === '30days') {
-//     startDate = new Date();
-//     startDate.setDate(startDate.getDate() - 29);
-//     startDate.setHours(0, 0, 0, 0);
-//   } else if (range === 'custom') {
-//     const startInput = document.getElementById('report-start').value;
-//     const endInput = document.getElementById('report-end').value;
-//     if (!startInput || !endInput) {
-//       return alert('Please select both start and end dates.');
-//     }
-//     startDate = new Date(startInput);
-//     startDate.setHours(0, 0, 0, 0);
-//     endDate = new Date(endInput);
-//     endDate.setHours(23, 59, 59, 999);
-//   }
-
-//   const sales = await getSalesInRange(startDate, endDate);
-//   if (!sales.length) return alert("No sales found in the selected range.");
-
-//   // Generate PDF
-//   const { jsPDF } = window.jspdf;
-//   const doc = new jsPDF();
-
-//   doc.setFontSize(16);
-//   doc.text("Sales Report", 14, 20);
-//   doc.setFontSize(10);
-
-//   // Prepare table rows
-//   const rows = sales.map(sale => {
-//     const items = sale.items.map(i => `${i.name} x${i.qty}`).join(", ");
-//     return [
-//       sale.bill_no,
-//       sale.date,
-//       sale.time,
-//       `₹${sale.total}`,
-//       items
-//     ];
-//   });
-
-//   // Create table using autoTable
-//   doc.autoTable({
-//     head: [['Bill No', 'Date', 'Time', 'Total', 'Items']],
-//     body: rows,
-//     startY: 30,
-//     theme: 'grid',
-//     styles: {
-//       fontSize: 9,
-//       cellPadding: 3,
-//     },
-//     headStyles: {
-//       fillColor: [30, 136, 229],
-//       textColor: 255,
-//       fontStyle: 'bold'
-//     },
-//     columnStyles: {
-//       0: { cellWidth: 20 },
-//       1: { cellWidth: 30 },
-//       2: { cellWidth: 25 },
-//       3: { cellWidth: 25 },
-//       4: { cellWidth: 'auto' }
-//     }
-//   });
-
-//   const startLabel = startDate.toISOString().split("T")[0];
-//   const endLabel = endDate.toISOString().split("T")[0];
-//   doc.save(`sales_report_${startLabel}_to_${endLabel}.pdf`);
-// }
 async function exportSalesReport() {
   const range = document.getElementById('report-range').value;
   let startDate, endDate;

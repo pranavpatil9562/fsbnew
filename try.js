@@ -8,6 +8,10 @@ let currentUser = null;
 let items = [];
 let selectedItems = [];
 let billNo = 1;
+let sales = JSON.parse(localStorage.getItem("sales") || "[]");
+const { jsPDF } = window.jspdf;
+
+
 
 window.onload = async function () {
   const { data: { session } } = await supabaseClient.auth.getSession();
@@ -62,126 +66,4 @@ async function loadMenuFromDB() {
   if (error) return console.error("Menu load error:", error);
   items = data;
   renderMenu();
-}
-
-async function addMenuItem(userId, name, price, image) {
-  const { error } = await supabaseClient.from("user_menu").insert([
-    { user_id: userId, name, price, image }
-  ]);
-  if (error) alert("Menu add failed:", error.message);
-  else await loadMenuFromDB();
-}
-
-async function saveSale() {
-  const date = new Date();
-  const total = selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0);
-  const bill = {
-    user_id: currentUser.id,
-    bill_no: billNo++,
-    date: date.toLocaleDateString(),
-    time: date.toLocaleTimeString(),
-    items: selectedItems,
-    total
-  };
-  const { error } = await supabaseClient.from("user_sales").insert([bill]);
-  if (error) return alert("Bill save failed:", error.message);
-  selectedItems = [];
-  renderBill();
-  renderMenu();
-  updateDashboard();
-  alert("Bill saved!");
-}
-
-async function getSalesInRange(startDate, endDate) {
-  const { data, error } = await supabaseClient
-    .from("user_sales")
-    .select("*")
-    .eq("user_id", currentUser.id)
-    .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString());
-  if (error) return alert("Sales fetch error: " + error.message);
-  return data;
-}
-
-function renderMenu() {
-  const menuDiv = document.getElementById("menu");
-  menuDiv.innerHTML = items.length === 0 ? '<p style="text-align:center;">🍽 No items in menu yet. Add from Settings ➕</p>' : "";
-  items.forEach((item, index) => {
-    const existing = selectedItems.find(i => i.name === item.name);
-    const quantity = existing ? existing.qty : 0;
-    const div = document.createElement("div");
-    div.className = "menu-item";
-    div.onclick = () => addToBill(item);
-    div.innerHTML = `
-      <img src="${item.image}" class="menu-image" alt="${item.name}" />
-      <div>${item.name}<br>₹${item.price}</div>
-      <div class="menu-controls">
-        <button onclick="changeQty(${index}, -1); event.stopPropagation();">−</button>
-        <span id="qty-${index}">${quantity}</span>
-        <button onclick="changeQty(${index}, 1); event.stopPropagation();">+</button>
-      </div>
-    `;
-    menuDiv.appendChild(div);
-  });
-}
-
-function addToBill(item) {
-  const existing = selectedItems.find(i => i.name === item.name);
-  if (existing) existing.qty++;
-  else selectedItems.push({ ...item, qty: 1 });
-  renderBill();
-}
-
-function changeQty(index, delta) {
-  const item = items[index];
-  const existing = selectedItems.find(i => i.name === item.name);
-  if (existing) {
-    existing.qty += delta;
-    if (existing.qty <= 0) selectedItems = selectedItems.filter(i => i.name !== item.name);
-  } else if (delta > 0) {
-    selectedItems.push({ ...item, qty: 1 });
-  }
-  renderBill();
-  document.getElementById(`qty-${index}`).innerText = selectedItems.find(i => i.name === item.name)?.qty || 0;
-}
-
-function renderBill() {
-  const tbody = document.querySelector("#bill-table tbody");
-  tbody.innerHTML = "";
-  let totalAmount = 0;
-  let totalQty = 0;
-  selectedItems.forEach(item => {
-    const itemTotal = item.price * item.qty;
-    totalAmount += itemTotal;
-    totalQty += item.qty;
-    tbody.innerHTML += `<tr>
-      <td>${item.name}</td>
-      <td>${item.qty}</td>
-      <td>₹${item.price}</td>
-      <td>₹${itemTotal}</td>
-    </tr>`;
-  });
-  document.getElementById("total-display").innerText = `Total Items: ${selectedItems.length}, Quantity: ${totalQty}, Grand Total: ₹${totalAmount}`;
-}
-
-async function updateDashboard() {
-  const today = new Date();
-  const start = new Date(today.setHours(0, 0, 0, 0));
-  const end = new Date(today.setHours(23, 59, 59, 999));
-  const salesToday = await getSalesInRange(start, end);
-  const totalSales = salesToday.reduce((sum, sale) => sum + sale.total, 0);
-  const totalQty = salesToday.reduce((sum, sale) => sum + sale.items.reduce((s, i) => s + i.qty, 0), 0);
-  const totalBills = salesToday.length;
-  document.getElementById("dash-total-sales").innerText = `₹${totalSales}`;
-  document.getElementById("dash-total-qty").innerText = `${totalQty}`;
-  document.getElementById("dash-total-bills").innerText = `${totalBills}`;
-}
-
-function filterMenu() {
-  const query = document.getElementById("search-bar").value.toLowerCase();
-  const menuItems = document.querySelectorAll(".menu-item");
-  menuItems.forEach(item => {
-    const name = item.querySelector("div").innerText.toLowerCase();
-    item.style.display = name.includes(query) ? "block" : "none";
-  });
 }
