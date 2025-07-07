@@ -207,8 +207,9 @@ function filterMenu() {
 }
 let printerDevice = null;
 let printerCharacteristic = null;
-function prepareAndPrint() {
+async function prepareAndPrint() {
   const date = new Date();
+  const billNo = await getAndIncrementBillNo();
   const current = {
     billNo,
     date: date.toLocaleDateString(),
@@ -224,7 +225,7 @@ function prepareAndPrint() {
     items: current.items,
     total: current.total
   }]).then(() => {
-    localStorage.setItem("billNo", ++billNo);
+    // localStorage.setItem("billNo", ++billNo);
     printBillRaw(current).then(() => {
       selectedItems = [];
       renderBill();
@@ -476,6 +477,32 @@ async function exportSalesReport() {
   doc.save(`sales_report_${startLabel}_to_${endLabel}.pdf`);
 }
 
+async function getAndIncrementBillNo() {
+  const { data, error } = await supabaseClient
+    .from('user_counters')
+    .select('bill_no')
+    .eq('user_id', currentUser.id)
+    .single();
+
+  if (error && error.code === 'PGRST116') {
+    // No row exists yet, create it
+    await supabaseClient.from('user_counters').insert([
+      { user_id: currentUser.id, bill_no: 2 }
+    ]);
+    return 1;
+  } else if (error) {
+    alert("Failed to get bill number: " + error.message);
+    return 1;
+  } else {
+    // Update and return current
+    await supabaseClient
+      .from('user_counters')
+      .update({ bill_no: data.bill_no + 1 })
+      .eq('user_id', currentUser.id);
+
+    return data.bill_no;
+  }
+}
 
 
  
