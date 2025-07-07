@@ -93,6 +93,16 @@
   <input type="date" id="report-end">
 </div>
 <button onclick="exportSalesReport()">⬇️ Download PDF</button>
+<button onclick="testPDF()">Test PDF Download</button>
+<script>
+  function testPDF() {
+    const jsPDF = window.jspdf.jsPDF;
+    const doc = new jsPDF();
+    doc.text("Test PDF download works!", 10, 10);
+    doc.save("test_success.pdf");
+  }
+</script>
+
 
         </div>
       </section>

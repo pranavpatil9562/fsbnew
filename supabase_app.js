@@ -9,7 +9,11 @@ let items = [];
 let selectedItems = [];
 let billNo = 1;
 let sales = JSON.parse(localStorage.getItem("sales") || "[]");
-const { jsPDF } = window.jspdf;
+let printerDevice = null;
+let printerCharacteristic = null;
+// const { jsPDF } = window.jspdf;
+
+const jsPDF = window.jspdf.jsPDF;
 
 
 
@@ -97,7 +101,7 @@ async function saveSale() {
   const bill = {
     user_id: currentUser.id,
     bill_no: billNo++,
-    date: date.toLocaleDateString(),
+    date: date.toLocaleDateString("en-GB"),
     time: date.toLocaleTimeString(),
     items: selectedItems,
     total
@@ -111,16 +115,39 @@ async function saveSale() {
   alert("Bill saved!");
 }
 
+// async function getSalesInRange(startDate, endDate) {
+//   const from = startDate.toISOString();
+//   const to = endDate.toISOString();
+
+//   console.log("Querying from:", from, "to:", to);
+
+//   const { data, error } = await supabaseClient
+//     .from("user_sales")
+//     .select("*")
+//     .eq("user_id", currentUser.id)
+//     .gte("created_at", from)
+//     .lte("created_at", to); // ✅ replace `.between` with gte+lte
+
+//   if (error) {
+//     alert("Sales fetch error: " + error.message);
+//     return [];
+//   }
+
+//   return data;
+// }
 async function getSalesInRange(startDate, endDate) {
   const { data, error } = await supabaseClient
     .from("user_sales")
     .select("*")
-    .eq("user_id", currentUser.id)
-    .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString());
-  if (error) return alert("Sales fetch error: " + error.message);
-  return data;
+    .eq("user_id", currentUser.id); // 🚫 no date filter
+
+  console.log("SALES FOUND:", data);
+
+  return data || [];
 }
+
+
+
 
 function renderMenu() {
   const menuDiv = document.getElementById("menu");
@@ -205,14 +232,14 @@ function filterMenu() {
     item.style.display = name.includes(query) ? "block" : "none";
   });
 }
-let printerDevice = null;
-let printerCharacteristic = null;
+
 async function prepareAndPrint() {
   const date = new Date();
   const billNo = await getAndIncrementBillNo();
   const current = {
     billNo,
-    date: date.toLocaleDateString(),
+    date: date.toLocaleDateString("en-GB"),
+
     time: date.toLocaleTimeString(),
     items: [...selectedItems],
     total: selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0)
@@ -370,112 +397,9 @@ async function printBillRaw(current, fallbackAttempted = false) {
   }
 }
 
-function handleDateRangeChange() {
-  const range = document.getElementById('report-range').value;
-  const customInputs = document.getElementById('custom-date-inputs');
-  customInputs.style.display = (range === 'custom') ? 'block' : 'none';
-}
 
-async function exportSalesReport() {
-  const range = document.getElementById('report-range').value;
-  let startDate, endDate;
 
-  const today = new Date();
-  endDate = new Date(today.setHours(23, 59, 59, 999));
 
-  if (range === 'today') {
-    startDate = new Date();
-    startDate.setHours(0, 0, 0, 0);
-  } else if (range === '7days') {
-    startDate = new Date();
-    startDate.setDate(startDate.getDate() - 6);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (range === '30days') {
-    startDate = new Date();
-    startDate.setDate(startDate.getDate() - 29);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (range === 'custom') {
-    const startInput = document.getElementById('report-start').value;
-    const endInput = document.getElementById('report-end').value;
-    if (!startInput || !endInput) {
-      return alert('Please select both start and end dates.');
-    }
-    startDate = new Date(startInput);
-    startDate.setHours(0, 0, 0, 0);
-    endDate = new Date(endInput);
-    endDate.setHours(23, 59, 59, 999);
-  }
-
-  const sales = await getSalesInRange(startDate, endDate);
-  if (!sales.length) return alert("No sales found in the selected range.");
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  // === Summary calculations ===
-  const totalBills = sales.length;
-  const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
-  const totalQty = sales.reduce((sum, s) => sum + s.items.reduce((q, i) => q + i.qty, 0), 0);
-
-  // === Title ===
-  doc.setFontSize(18);
-  doc.setTextColor(40);
-  doc.text("Sales Report", 14, 20);
-
-  // === Info Boxes ===
-  const boxY = 28;
-  const boxHeight = 16;
-  const boxWidth = 58;
-
-  doc.setDrawColor(0);
-  doc.setFillColor(220, 237, 200); // Light green
-  doc.rect(14, boxY, boxWidth, boxHeight, 'F');
-  doc.rect(76, boxY, boxWidth, boxHeight, 'F');
-  doc.rect(138, boxY, boxWidth, boxHeight, 'F');
-
-  doc.setFontSize(10);
-  doc.setTextColor(0);
-  doc.text(`Total Bills: ${totalBills}`, 18, boxY + 6);
-  doc.text(`Total Quantity: ${totalQty}`, 80, boxY + 6);
-  doc.text(`Total Revenue: ₹${totalRevenue}`, 142, boxY + 6);
-
-  // === Prepare table rows ===
-  const rows = sales.map(sale => {
-    const items = sale.items.map(i => `${i.name} x${i.qty}`).join(", ");
-    return [
-      sale.bill_no,
-      sale.date,
-      sale.time,
-      `₹${sale.total}`,
-      items
-    ];
-  });
-
-  // === Table ===
-  doc.autoTable({
-    startY: boxY + boxHeight + 10,
-    head: [['Bill No', 'Date', 'Time', 'Total', 'Items']],
-    body: rows,
-    theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 3 },
-    headStyles: {
-      fillColor: [30, 136, 229],
-      textColor: 255,
-      fontStyle: 'bold'
-    },
-    columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 25 },
-      4: { cellWidth: 'auto' }
-    }
-  });
-
-  const startLabel = startDate.toISOString().split("T")[0];
-  const endLabel = endDate.toISOString().split("T")[0];
-  doc.save(`sales_report_${startLabel}_to_${endLabel}.pdf`);
-}
 
 async function getAndIncrementBillNo() {
   const { data, error } = await supabaseClient
@@ -503,6 +427,96 @@ async function getAndIncrementBillNo() {
     return data.bill_no;
   }
 }
+async function exportSalesReport() {
+  console.log("Export function triggered!");
+
+  const jsPDF = window.jspdf.jsPDF;
+  const rangeSelect = document.getElementById("report-range");
+  if (!rangeSelect) {
+    console.error("report-range select not found!");
+    return;
+  }
+
+  const range = rangeSelect.value;
+  console.log("Range selected:", range);
+
+  let startDateStr, endDateStr;
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy = today.getFullYear();
+  const todayStr = `${dd}/${mm}/${yyyy}`;
+
+  if (range === "today") {
+    startDateStr = endDateStr = todayStr;
+  } else if (range === "7days" || range === "30days") {
+    const days = range === "7days" ? 6 : 29;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const sdd = String(startDate.getDate()).padStart(2, '0');
+    const smm = String(startDate.getMonth() + 1).padStart(2, '0');
+    const syyyy = startDate.getFullYear();
+    startDateStr = `${sdd}/${smm}/${syyyy}`;
+    endDateStr = todayStr;
+  } else if (range === "custom") {
+    const startInput = document.getElementById("report-start").value;
+    const endInput = document.getElementById("report-end").value;
+    if (!startInput || !endInput) return alert("Please select both dates.");
+    const [sy, sm, sd] = startInput.split("-");
+    const [ey, em, ed] = endInput.split("-");
+    startDateStr = `${sd}/${sm}/${sy}`;
+    endDateStr = `${ed}/${em}/${ey}`;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("user_sales")
+    .select("*")
+    .eq("user_id", currentUser.id);
+
+  if (error) {
+    alert("Failed to fetch sales: " + error.message);
+    return;
+  }
+
+  console.log("Sales fetched:", data.length);
+
+  const filteredSales = data.filter(sale => sale.date === startDateStr || sale.date === endDateStr);
+
+
+  console.log("Filtered sales:", filteredSales.length);
+
+  if (!filteredSales.length) {
+    alert("No sales found in selected range.");
+    return;
+  }
+
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Sales Report", 14, 20);
+
+  const rows = filteredSales.map(s => {
+    const items = s.items.map(i => `${i.name} x${i.qty}`).join(", ");
+    return [s.bill_no, s.date, s.time, `₹${s.total}`, items];
+  });
+
+  doc.autoTable({
+    startY: 30,
+    head: [["Bill No", "Date", "Time", "Total", "Items"]],
+    body: rows,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [30, 136, 229], textColor: 255 }
+  });
+
+  const labelStart = startDateStr.replace(/\//g, "-");
+  const labelEnd = endDateStr.replace(/\//g, "-");
+  doc.save(`sales_report_${labelStart}_to_${labelEnd}.pdf`);
+}
+function handleDateRangeChange() {
+  const range = document.getElementById("report-range").value;
+  const customInputs = document.getElementById("custom-date-inputs");
+  customInputs.style.display = (range === "custom") ? "block" : "none";
+}
+
 
 
  
