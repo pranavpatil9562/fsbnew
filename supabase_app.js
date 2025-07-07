@@ -149,6 +149,7 @@ function addToBill(item) {
   if (existing) existing.qty++;
   else selectedItems.push({ ...item, qty: 1 });
   renderBill();
+  renderMenu();
 }
 
 function changeQty(index, delta) {
