@@ -115,26 +115,7 @@ async function saveSale() {
   alert("Bill saved!");
 }
 
-// async function getSalesInRange(startDate, endDate) {
-//   const from = startDate.toISOString();
-//   const to = endDate.toISOString();
 
-//   console.log("Querying from:", from, "to:", to);
-
-//   const { data, error } = await supabaseClient
-//     .from("user_sales")
-//     .select("*")
-//     .eq("user_id", currentUser.id)
-//     .gte("created_at", from)
-//     .lte("created_at", to); // ✅ replace `.between` with gte+lte
-
-//   if (error) {
-//     alert("Sales fetch error: " + error.message);
-//     return [];
-//   }
-
-//   return data;
-// }
 async function getSalesInRange(startDate, endDate) {
   const { data, error } = await supabaseClient
     .from("user_sales")
@@ -211,19 +192,7 @@ function renderBill() {
   document.getElementById("total-display").innerText = `Total Items: ${selectedItems.length}, Quantity: ${totalQty}, Grand Total: ₹${totalAmount}`;
 }
 
-// async function updateDashboard() {
-//   const today = new Date();
-//   const start = new Date(today.setHours(0, 0, 0, 0));
-//   const end = new Date(today.setHours(23, 59, 59, 999));
-//   getSalesInRange(start, end).then(salesToday => {
-//     const totalSales = salesToday.reduce((sum, sale) => sum + sale.total, 0);
-//     const totalQty = salesToday.reduce((sum, sale) => sum + sale.items.reduce((s, i) => s + i.qty, 0), 0);
-//     const totalBills = salesToday.length;
-//     document.getElementById("dash-total-sales").innerText = `₹${totalSales}`;
-//     document.getElementById("dash-total-qty").innerText = `${totalQty}`;
-//     document.getElementById("dash-total-bills").innerText = `${totalBills}`;
-//   });
-// }
+
 function filterMenu() {
   const query = document.getElementById("search-bar").value.toLowerCase();
   const menuItems = document.querySelectorAll(".menu-item");
@@ -263,63 +232,110 @@ async function prepareAndPrint() {
     alert("Failed to save sale: " + error.message);
   });
 }
-function printBill(current = null, fallbackAttempted = false) {
-  const date = new Date();
-  const currentBill = current || {
-    billNo,
-    date: date.toLocaleDateString(),
-    time: date.toLocaleTimeString(),
-    items: [...selectedItems],
-    total: selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0)
-  };
+// function printBill(current = null, fallbackAttempted = false) {
+//   const date = new Date();
+//   const currentBill = current || {
+//     billNo,
+//     date: date.toLocaleDateString(),
+//     time: date.toLocaleTimeString(),
+//     items: [...selectedItems],
+//     total: selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+//   };
 
-  sales.push(currentBill);
-  localStorage.setItem("sales", JSON.stringify(sales));
-  localStorage.setItem("billNo", ++billNo);
+//   sales.push(currentBill);
+//   localStorage.setItem("sales", JSON.stringify(sales));
+//   localStorage.setItem("billNo", ++billNo);
 
-  let printWindow = window.open('', '', 'width=400,height=600');
-  let billHTML = `
-    <html>
-    <head><title>Print Bill</title></head>
-    <body onload="window.print(); window.close();">
-    <pre style="font-family: monospace;">
--------------------------------
-        ABHI TIFFIN CENTER
-    Shop no.4,Patil Complex,
-             Bidar
--------------------------------
-Bill No:ATC-${currentBill.billNo}
-Date,Time:${currentBill.date},${currentBill.time}
--------------------------------
-Item       Qty  Rate  Total
-${currentBill.items.map(i =>
-  `${i.name.padEnd(10)} ${i.qty.toString().padEnd(4)} ₹${i.price.toString().padEnd(5)} ₹${(i.price * i.qty)}`
-).join('\n')}
--------------------------------
-Total Items: ${currentBill.items.length},Total Qty:${currentBill.items.reduce((sum, i) => sum + i.qty, 0)}
--------------------------------
-Grand Total: ₹${currentBill.total}
--------------------------------
-    THANK YOU! VISIT AGAIN
--------------------------------
-    </pre>
-    </body>
-    </html>`;
+//   let printWindow = window.open('', '', 'width=400,height=600');
+//   let billHTML = `
+//     <html>
+//     <head><title>Print Bill</title></head>
+//     <body onload="window.print(); window.close();">
+//     <pre style="font-family: monospace;">
+// -------------------------------
+//         ABHI TIFFIN CENTER
+//     Shop no.4,Patil Complex,
+//              Bidar
+// -------------------------------
+// Bill No:ATC-${currentBill.billNo}
+// Date,Time:${currentBill.date},${currentBill.time}
+// -------------------------------
+// Item       Qty  Rate  Total
+// ${currentBill.items.map(i =>
+//   `${i.name.padEnd(10)} ${i.qty.toString().padEnd(4)} ₹${i.price.toString().padEnd(5)} ₹${(i.price * i.qty)}`
+// ).join('\n')}
+// -------------------------------
+// Total Items: ${currentBill.items.length},Total Qty:${currentBill.items.reduce((sum, i) => sum + i.qty, 0)}
+// -------------------------------
+// Grand Total: ₹${currentBill.total}
+// -------------------------------
+//     THANK YOU! VISIT AGAIN
+// -------------------------------
+//     </pre>
+//     </body>
+//     </html>`;
 
-  printWindow.document.write(billHTML);
-  // printWindow.document.close();
+//   printWindow.document.write(billHTML);
+//   // printWindow.document.close();
 
-  // Only call printBillRaw if it wasn't already attempted
-  if (!fallbackAttempted) {
-    printBillRaw(currentBill, true);
+//   // Only call printBillRaw if it wasn't already attempted
+//   if (!fallbackAttempted) {
+//     printBillRaw(currentBill, true);
+//   }
+
+//   saveSale();
+//   selectedItems = [];
+//   renderBill();
+//   renderMenu();
+//   //updateDashboard();
+// }
+async function sendToPrinter(raw) {
+  const encoder = new TextEncoder();
+  const encoded = encoder.encode(raw);
+
+  // QZ Tray
+  if (window.qz) {
+    try {
+      await qz.api.connect();
+      const cfg = qz.configs.create();
+      await qz.print(cfg, [{ type: 'raw', format: 'command', data: raw }]);
+      await qz.api.disconnect();
+      return;
+    } catch (err) {
+      console.warn("QZ Tray failed:", err);
+    }
   }
 
-  saveSale();
-  selectedItems = [];
-  renderBill();
-  renderMenu();
-  //updateDashboard();
+  // Web Bluetooth
+  if (navigator.bluetooth) {
+    try {
+      if (!printerDevice || !printerCharacteristic) {
+        printerDevice = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+        });
+        const server = await printerDevice.gatt.connect();
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        printerCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+      }
+
+      const chunkSize = 512;
+      for (let i = 0; i < encoded.length; i += chunkSize) {
+        const chunk = encoded.slice(i, i + chunkSize);
+        await printerCharacteristic.writeValue(chunk);
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      return;
+    } catch (err) {
+      console.warn("Bluetooth print failed:", err);
+      printerDevice = null;
+      printerCharacteristic = null;
+    }
+  }
+
+  alert("Failed to print summary — check printer connection.");
 }
+
 
 function buildEscPosCommands(current) {
     const { billNo, date, time, items, total } = current;
@@ -498,14 +514,50 @@ async function exportSalesReport() {
     const items = s.items.map(i => `${i.name} x${i.qty}`).join(", ");
     return [s.bill_no, s.date, s.time, `₹${s.total}`, items];
   });
+  const totalBills = filteredSales.length;
+const totalRevenue = filteredSales.reduce((sum, s) => sum + s.total, 0);
 
-  doc.autoTable({
-    startY: 30,
-    head: [["Bill No", "Date", "Time", "Total", "Items"]],
-    body: rows,
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [30, 136, 229], textColor: 255 }
-  });
+// Colored Total Bills Box
+doc.setFillColor(63, 81, 181); // Indigo
+doc.setTextColor(255);
+doc.rect(14, 30, 90, 10, 'F');
+doc.setFontSize(11);
+doc.text(`Total Bills: ${totalBills}`, 16, 37);
+
+// Colored Total Revenue Box
+doc.setFillColor(0, 150, 136); // Teal
+doc.rect(110, 30, 90, 10, 'F');
+doc.setTextColor(255);
+doc.text(`Total Revenue: ${totalRevenue.toLocaleString("en-IN")}`, 112, 37);
+
+
+doc.autoTable({
+  startY: 45,
+  head: [["Bill No", "Date", "Time", "Total", "Items"]],
+  body: filteredSales.map(s => {
+    const items = s.items.map(i => `${i.name} x${i.qty}`).join(", ");
+    return [s.bill_no, s.date, s.time, `${s.total}`, items];
+  }),
+  styles: { fontSize: 9, cellPadding: 3 },
+  columnStyles: {
+    0: { cellWidth: 20 },   // Bill No
+    1: { cellWidth: 25 },   // Date
+    2: { cellWidth: 25 },   // Time
+    3: { cellWidth: 25 },   // Total
+    4: { cellWidth: 'auto' } // Items - allow it to wrap
+  },
+  headStyles: {
+    fillColor: [30, 136, 229],
+    textColor: 255,
+    fontStyle: 'bold'
+  },
+  theme: 'striped',
+  didDrawCell: (data) => {
+    // Optional: highlight total row or handle large text wrapping
+  }
+});
+
+
 
   const labelStart = startDateStr.replace(/\//g, "-");
   const labelEnd = endDateStr.replace(/\//g, "-");
@@ -516,7 +568,90 @@ function handleDateRangeChange() {
   const customInputs = document.getElementById("custom-date-inputs");
   customInputs.style.display = (range === "custom") ? "block" : "none";
 }
+async function printSalesSummary() {
+  const rangeSelect = document.getElementById("report-range").value;
 
+  // Get date range
+  let startDateStr, endDateStr;
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy = today.getFullYear();
+  const todayStr = `${dd}/${mm}/${yyyy}`;
+
+  if (rangeSelect === "today") {
+    startDateStr = endDateStr = todayStr;
+  } else if (rangeSelect === "7days" || rangeSelect === "30days") {
+    const days = rangeSelect === "7days" ? 6 : 29;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const sdd = String(startDate.getDate()).padStart(2, '0');
+    const smm = String(startDate.getMonth() + 1).padStart(2, '0');
+    const syyyy = startDate.getFullYear();
+    startDateStr = `${sdd}/${smm}/${syyyy}`;
+    endDateStr = todayStr;
+  } else if (rangeSelect === "custom") {
+    const startInput = document.getElementById("report-start").value;
+    const endInput = document.getElementById("report-end").value;
+    if (!startInput || !endInput) return alert("Please select both dates.");
+    const [sy, sm, sd] = startInput.split("-");
+    const [ey, em, ed] = endInput.split("-");
+    startDateStr = `${sd}/${sm}/${sy}`;
+    endDateStr = `${ed}/${em}/${ey}`;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("user_sales")
+    .select("*")
+    .eq("user_id", currentUser.id);
+
+  if (error) {
+    alert("Failed to fetch sales: " + error.message);
+    return;
+  }
+
+  // Filter by date range
+  const parseDate = d => {
+    const [dd, mm, yyyy] = d.split("/");
+    return new Date(`${yyyy}-${mm}-${dd}`);
+  };
+  const sales = data.filter(s => {
+    const date = parseDate(s.date);
+    return date >= parseDate(startDateStr) && date <= parseDate(endDateStr);
+  });
+
+  const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
+  const totalBills = sales.length;
+
+  const summaryText = {
+    dateRange: `${startDateStr} to ${endDateStr}`,
+    totalBills,
+    totalRevenue
+  };
+
+  const raw = buildSalesSummaryEscPos(summaryText);
+  await sendToPrinter(raw);
+}
+
+function buildSalesSummaryEscPos(summary) {
+  const { dateRange, totalBills, totalRevenue } = summary;
+  let cmds = "";
+  cmds += "\x1B\x40";  // Initialize
+  cmds += "\x1B\x61\x01";  // Center
+  cmds += "ABHI TIFFIN CENTER\n";
+  cmds += "SALES SUMMARY REPORT\n";
+  cmds += "\x1B\x61\x00";  // Left align
+  cmds += "-----------------------------\n";
+  cmds += `Range: ${dateRange}\n`;
+  cmds += `Total Bills : ${totalBills}\n`;
+  cmds += `Total Revenue: ${totalRevenue}\n`;
+  cmds += "-----------------------------\n";
+  cmds += "Thank You! Keep Selling \n";
+  cmds += "Software by Tech Innovators\n";
+  cmds += "\n\n\n";
+  cmds += "\x1D\x56\x41"; // Cut
+  return cmds;
+}
 
 
  
