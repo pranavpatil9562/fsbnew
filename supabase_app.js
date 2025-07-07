@@ -7,23 +7,17 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let items = [];
 let selectedItems = [];
-let billNo = parseInt(localStorage.getItem("billNo") || "1"); // Fixed: Load from localStorage
+let billNo = 1;
 let sales = JSON.parse(localStorage.getItem("sales") || "[]");
 const { jsPDF } = window.jspdf;
+
+
 
 window.onload = async function () {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
     showApp();
-
-    // Load from localStorage first for speed
-    const cachedItems = JSON.parse(localStorage.getItem("menuItems") || "[]");
-    if (cachedItems.length > 0) {
-      items = cachedItems;
-      renderMenu();
-    }
-
     await loadMenuFromDB();
   } else {
     showLogin();
@@ -41,7 +35,7 @@ function showApp() {
   document.getElementById("user-display").innerText = `Welcome, ${currentUser.email}`;
   renderMenu();
   renderBill();
-  updateDashboard();
+  //updateDashboard();
 }
 
 async function register() {
@@ -69,12 +63,18 @@ async function logout() {
 
 async function loadMenuFromDB() {
   const { data, error } = await supabaseClient.from("user_menu").select("*").eq("user_id", currentUser.id);
+  if (error) return console.error("Menu load error:", error);
+  items = data;
+  renderMenu();
+}
+async function loadMenuFromDB() {
+  const { data, error } = await supabaseClient.from("user_menu").select("*").eq("user_id", currentUser.id);
   if (error) {
     alert("Failed to load menu from database.");
     return console.error("Menu load error:", error);
   }
   items = data;
-  localStorage.setItem("menuItems", JSON.stringify(items)); // Save to localStorage
+  // localStorage.setItem("menuItems", JSON.stringify(items)); // Save to localStorage
   renderMenu();
 }
 
@@ -83,7 +83,11 @@ async function addMenuItem(userId, name, price, image) {
   const { error } = await supabaseClient.from("user_menu").insert([
     { user_id: userId, name, price, image }
   ]);
-  if (error) alert("Menu add failed:", error.message);
+  if (error) {
+  alert("Menu add failed: " + error.message);
+  console.error("Add menu error:", error);
+}
+
   else await loadMenuFromDB();
 }
 
@@ -103,7 +107,7 @@ async function saveSale() {
   selectedItems = [];
   renderBill();
   renderMenu();
-  updateDashboard();
+  //updateDashboard();
   alert("Bill saved!");
 }
 
@@ -179,19 +183,19 @@ function renderBill() {
   document.getElementById("total-display").innerText = `Total Items: ${selectedItems.length}, Quantity: ${totalQty}, Grand Total: ₹${totalAmount}`;
 }
 
-async function updateDashboard() {
-  const today = new Date();
-  const start = new Date(today.setHours(0, 0, 0, 0));
-  const end = new Date(today.setHours(23, 59, 59, 999));
-  getSalesInRange(start, end).then(salesToday => {
-    const totalSales = salesToday.reduce((sum, sale) => sum + sale.total, 0);
-    const totalQty = salesToday.reduce((sum, sale) => sum + sale.items.reduce((s, i) => s + i.qty, 0), 0);
-    const totalBills = salesToday.length;
-    document.getElementById("dash-total-sales").innerText = `₹${totalSales}`;
-    document.getElementById("dash-total-qty").innerText = `${totalQty}`;
-    document.getElementById("dash-total-bills").innerText = `${totalBills}`;
-  });
-}
+// async function updateDashboard() {
+//   const today = new Date();
+//   const start = new Date(today.setHours(0, 0, 0, 0));
+//   const end = new Date(today.setHours(23, 59, 59, 999));
+//   getSalesInRange(start, end).then(salesToday => {
+//     const totalSales = salesToday.reduce((sum, sale) => sum + sale.total, 0);
+//     const totalQty = salesToday.reduce((sum, sale) => sum + sale.items.reduce((s, i) => s + i.qty, 0), 0);
+//     const totalBills = salesToday.length;
+//     document.getElementById("dash-total-sales").innerText = `₹${totalSales}`;
+//     document.getElementById("dash-total-qty").innerText = `${totalQty}`;
+//     document.getElementById("dash-total-bills").innerText = `${totalBills}`;
+//   });
+// }
 function filterMenu() {
   const query = document.getElementById("search-bar").value.toLowerCase();
   const menuItems = document.querySelectorAll(".menu-item");
@@ -224,7 +228,7 @@ function prepareAndPrint() {
       selectedItems = [];
       renderBill();
       renderMenu();
-      updateDashboard();
+      //updateDashboard();
     });
   }).catch(error => {
     alert("Failed to save sale: " + error.message);
@@ -285,7 +289,7 @@ Grand Total: ₹${currentBill.total}
   selectedItems = [];
   renderBill();
   renderMenu();
-  updateDashboard();
+  //updateDashboard();
 }
 
 function buildEscPosCommands(current) {
