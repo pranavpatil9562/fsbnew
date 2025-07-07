@@ -26,6 +26,9 @@
       <h2>Login / Register</h2>
       <input type="email" id="username" placeholder="Enter Email">
       <input type="password" id="password" placeholder="Enter Password">
+      <input type="text" id="owner-name" placeholder="Owner Name">
+      <input type="text" id="hotel-address" placeholder="Hotel Name & Address">
+
       <div class="login-buttons">
         <button onclick="login()">Login</button>
         <button onclick="register()">Register</button>
@@ -68,10 +71,6 @@
   <button onclick="prepareAndPrint()">🖨️ Print Bill</button>
 </div>
       </section>
-  
-
-
-        
 <section id="billing-section" style="display:none;">
 
         <!-- Export Sales Report -->
@@ -119,9 +118,11 @@
           <input type="file" id="new-item-image" accept="image/*">
           <button onclick="handleAddMenuItem()">➕ Add Item</button>
         </div>
-        <div class="menu-edit-placeholder">
-          <p style="margin-top: 20px;">🛠️ Edit/Delete options for menu items coming soon...</p>
+        <div id="menu-edit-list" class="menu-manager" style="margin-top: 20px;">
+        <h3>📝 Edit/Delete Menu Items</h3>
+         <div id="menu-edit-container"></div>
         </div>
+
       </section>
     </div>
   </div>
@@ -133,11 +134,6 @@
       document.getElementById('settings-section').style.display = 'none';
       document.getElementById(id).style.display = 'block';
     }
-
-
- 
-
-
     async function handleAddMenuItem() {
       const name = document.getElementById('new-item-name').value;
       const price = document.getElementById('new-item-price').value;
@@ -148,6 +144,8 @@
       reader.onload = async function (e) {
         const imageBase64 = e.target.result;
         await addMenuItem(currentUser.id, name, parseFloat(price), imageBase64);
+        await loadMenuFromDB();  
+        await renderMenuEditList();
         document.getElementById('new-item-name').value = '';
         document.getElementById('new-item-price').value = '';
         document.getElementById('new-item-image').value = '';
@@ -156,6 +154,48 @@
       reader.readAsDataURL(file);
     }
   </script>
+  <script>
+  async function renderMenuEditList() {
+    const container = document.getElementById('menu-edit-container');
+    container.innerHTML = '';
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'menu-item';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = item.name;
+      nameInput.id = `name-${item.id}`;
+
+      const priceInput = document.createElement('input');
+      priceInput.type = 'number';
+      priceInput.value = item.price;
+      priceInput.id = `price-${item.id}`;
+
+      const buttonGroup = document.createElement('div');
+      buttonGroup.className = 'menu-controls';
+
+      const updateBtn = document.createElement('button');
+      updateBtn.innerText = '💾 Update';
+      updateBtn.onclick = () => updateMenuItem(item.id);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.innerText = '🗑️ Delete';
+      deleteBtn.onclick = () => deleteMenuItem(item.id);
+
+      buttonGroup.appendChild(updateBtn);
+      buttonGroup.appendChild(deleteBtn);
+
+      div.appendChild(nameInput);
+      div.appendChild(priceInput);
+      div.appendChild(buttonGroup);
+
+      container.appendChild(div);
+    });
+  }
+</script>
+
+
 
 
   <script src="supabase_app.js"></script>

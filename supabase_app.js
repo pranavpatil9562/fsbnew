@@ -21,12 +21,26 @@ window.onload = async function () {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
+
+    // Try to load ownerName and hotelAddress from localStorage
+    const profile = JSON.parse(localStorage.getItem("userProfile"));
+    if (profile) {
+      currentUser.profile = profile;
+    } else {
+      // fallback values if not available
+      currentUser.profile = {
+        ownerName: "Owner",
+        hotelAddress: "Your Address"
+      };
+    }
+
     showApp();
     await loadMenuFromDB();
   } else {
     showLogin();
   }
 };
+
 
 function showLogin() {
   document.getElementById("login-section").style.display = "block";
@@ -36,10 +50,18 @@ function showLogin() {
 function showApp() {
   document.getElementById("login-section").style.display = "none";
   document.getElementById("app-section").style.display = "block";
-  document.getElementById("user-display").innerText = `Welcome, ${currentUser.email}`;
+
+  const { ownerName, hotelAddress } = currentUser.profile;
+
+  // Greet user
+  document.getElementById("user-display").innerText = `Welcome, ${ownerName}`;
+
+  // Update header and tagline
+  document.querySelector(".title-block h1").innerText = "Food Stall Billing";
+  document.querySelector(".title-block .tagline").innerText = "A SAAS product by Tech Innovators";
+
   renderMenu();
   renderBill();
-  //updateDashboard();
 }
 
 async function register() {
@@ -53,24 +75,37 @@ async function register() {
 async function login() {
   const email = document.getElementById("username").value;
   const password = document.getElementById("password").value;
+  const ownerName = document.getElementById("owner-name").value;
+  const hotelAddress = document.getElementById("hotel-address").value;
+
+  if (!ownerName || !hotelAddress) {
+    return alert("Please enter owner name and hotel address.");
+  }
+
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) return alert("Login failed: " + error.message);
+
   currentUser = data.user;
+
+  // Save the info for greeting and printing only
+  currentUser.profile = {
+    ownerName,
+    hotelAddress
+  };
+  localStorage.setItem("userProfile", JSON.stringify(currentUser.profile));
+
+
   showApp();
   await loadMenuFromDB();
 }
+
 
 async function logout() {
   await supabaseClient.auth.signOut();
   showLogin();
 }
 
-async function loadMenuFromDB() {
-  const { data, error } = await supabaseClient.from("user_menu").select("*").eq("user_id", currentUser.id);
-  if (error) return console.error("Menu load error:", error);
-  items = data;
-  renderMenu();
-}
+
 async function loadMenuFromDB() {
   const { data, error } = await supabaseClient.from("user_menu").select("*").eq("user_id", currentUser.id);
   if (error) {
@@ -80,6 +115,7 @@ async function loadMenuFromDB() {
   items = data;
   // localStorage.setItem("menuItems", JSON.stringify(items)); // Save to localStorage
   renderMenu();
+  await renderMenuEditList();
 }
 
 
@@ -92,7 +128,7 @@ async function addMenuItem(userId, name, price, image) {
   console.error("Add menu error:", error);
 }
 
-  else await loadMenuFromDB();
+else await loadMenuFromDB();
 }
 
 async function saveSale() {
@@ -126,10 +162,6 @@ async function getSalesInRange(startDate, endDate) {
 
   return data || [];
 }
-
-
-
-
 function renderMenu() {
   const menuDiv = document.getElementById("menu");
   menuDiv.innerHTML = items.length === 0 ? '<p style="text-align:center;">🍽 No items in menu yet. Add from Settings ➕</p>' : "";
@@ -232,63 +264,7 @@ async function prepareAndPrint() {
     alert("Failed to save sale: " + error.message);
   });
 }
-// function printBill(current = null, fallbackAttempted = false) {
-//   const date = new Date();
-//   const currentBill = current || {
-//     billNo,
-//     date: date.toLocaleDateString(),
-//     time: date.toLocaleTimeString(),
-//     items: [...selectedItems],
-//     total: selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0)
-//   };
 
-//   sales.push(currentBill);
-//   localStorage.setItem("sales", JSON.stringify(sales));
-//   localStorage.setItem("billNo", ++billNo);
-
-//   let printWindow = window.open('', '', 'width=400,height=600');
-//   let billHTML = `
-//     <html>
-//     <head><title>Print Bill</title></head>
-//     <body onload="window.print(); window.close();">
-//     <pre style="font-family: monospace;">
-// -------------------------------
-//         ABHI TIFFIN CENTER
-//     Shop no.4,Patil Complex,
-//              Bidar
-// -------------------------------
-// Bill No:ATC-${currentBill.billNo}
-// Date,Time:${currentBill.date},${currentBill.time}
-// -------------------------------
-// Item       Qty  Rate  Total
-// ${currentBill.items.map(i =>
-//   `${i.name.padEnd(10)} ${i.qty.toString().padEnd(4)} ₹${i.price.toString().padEnd(5)} ₹${(i.price * i.qty)}`
-// ).join('\n')}
-// -------------------------------
-// Total Items: ${currentBill.items.length},Total Qty:${currentBill.items.reduce((sum, i) => sum + i.qty, 0)}
-// -------------------------------
-// Grand Total: ₹${currentBill.total}
-// -------------------------------
-//     THANK YOU! VISIT AGAIN
-// -------------------------------
-//     </pre>
-//     </body>
-//     </html>`;
-
-//   printWindow.document.write(billHTML);
-//   // printWindow.document.close();
-
-//   // Only call printBillRaw if it wasn't already attempted
-//   if (!fallbackAttempted) {
-//     printBillRaw(currentBill, true);
-//   }
-
-//   saveSale();
-//   selectedItems = [];
-//   renderBill();
-//   renderMenu();
-//   //updateDashboard();
-// }
 async function sendToPrinter(raw) {
   const encoder = new TextEncoder();
   const encoded = encoder.encode(raw);
@@ -342,7 +318,8 @@ function buildEscPosCommands(current) {
     let cmds = "";
     cmds += "\x1B\x40";
     cmds += "\x1B\x61\x01";
-    cmds += "ABHI TIFFIN CENTER\n";
+    const { ownerName, hotelAddress } = currentUser.profile;
+    cmds += `\n${hotelAddress}\n`;
     cmds += "\x1B\x61\x00";
     cmds += `Bill No: ATC-${billNo}\n`;
     cmds += `Date:${date},Time:${time}\n`;
@@ -638,7 +615,8 @@ function buildSalesSummaryEscPos(summary) {
   let cmds = "";
   cmds += "\x1B\x40";  // Initialize
   cmds += "\x1B\x61\x01";  // Center
-  cmds += "ABHI TIFFIN CENTER\n";
+  const { ownerName, hotelAddress } = currentUser.profile;
+  cmds += `${ownerName.toUpperCase()}\n${hotelAddress}\n`;
   cmds += "SALES SUMMARY REPORT\n";
   cmds += "\x1B\x61\x00";  // Left align
   cmds += "-----------------------------\n";
@@ -652,8 +630,34 @@ function buildSalesSummaryEscPos(summary) {
   cmds += "\x1D\x56\x41"; // Cut
   return cmds;
 }
+async function updateMenuItem(id) {
+  const nameInput = document.getElementById(`name-${id}`);
+  const priceInput = document.getElementById(`price-${id}`);
+  const newName = nameInput.value;
+  const newPrice = parseFloat(priceInput.value);
 
+  const { error } = await supabaseClient
+    .from("user_menu")
+    .update({ name: newName, price: newPrice })
+    .eq("id", id);
 
- 
+  if (error) return alert("Failed to update item: " + error.message);
+  alert("Item updated!");
+  await loadMenuFromDB();
+  await renderMenuEditList();
+}
 
+async function deleteMenuItem(id) {
+  const confirmDelete = confirm("Are you sure you want to delete this item?");
+  if (!confirmDelete) return;
 
+  const { error } = await supabaseClient
+    .from("user_menu")
+    .delete()
+    .eq("id", id);
+
+  if (error) return alert("Failed to delete item: " + error.message);
+  alert("Item deleted!");
+  await loadMenuFromDB();
+  await renderMenuEditList();
+}

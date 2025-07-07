@@ -592,3 +592,35 @@ input, button, select {
     width: 80%;
   }
 }
+#menu-edit-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+#menu-edit-container .menu-item {
+  flex: 0 1 calc(33.33% - 12px); /* 3 items per row */
+  background: #e7fbea;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-sizing: border-box;
+  min-width: 250px;
+}
+
+#menu-edit-container .menu-item input {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+#menu-edit-container .menu-controls {
+  display: flex;
+  justify-content: space-between;
+}
+@media (max-width: 600px) {
+  #menu-edit-container .menu-item {
+    flex: 0 1 100%;
+  }
+}
