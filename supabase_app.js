@@ -234,35 +234,74 @@ function filterMenu() {
   });
 }
 
+// async function prepareAndPrint() {
+//   const date = new Date();
+//   const billNo = await getAndIncrementBillNo();
+//   const current = {
+//     billNo,
+//     date: date.toLocaleDateString("en-GB"),
+
+//     time: date.toLocaleTimeString(),
+//     items: [...selectedItems],
+//     total: selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+//   };
+//   supabaseClient.from("user_sales").insert([{
+//     user_id: currentUser.id,
+//     bill_no: current.billNo,
+//     date: current.date,
+//     time: current.time,
+//     items: current.items,
+//     total: current.total
+//   }]).then(() => {
+//     // localStorage.setItem("billNo", ++billNo);
+//     printBillRaw(current).then(() => {
+//       selectedItems = [];
+//       renderBill();
+//       renderMenu();
+//       //updateDashboard();
+//     });
+//   }).catch(error => {
+//     alert("Failed to save sale: " + error.message);
+//   });
+// }
 async function prepareAndPrint() {
   const date = new Date();
   const billNo = await getAndIncrementBillNo();
   const current = {
     billNo,
     date: date.toLocaleDateString("en-GB"),
-
     time: date.toLocaleTimeString(),
     items: [...selectedItems],
     total: selectedItems.reduce((sum, i) => sum + i.price * i.qty, 0)
   };
-  supabaseClient.from("user_sales").insert([{
-    user_id: currentUser.id,
-    bill_no: current.billNo,
-    date: current.date,
-    time: current.time,
-    items: current.items,
-    total: current.total
-  }]).then(() => {
-    // localStorage.setItem("billNo", ++billNo);
-    printBillRaw(current).then(() => {
-      selectedItems = [];
-      renderBill();
-      renderMenu();
-      //updateDashboard();
-    });
-  }).catch(error => {
-    alert("Failed to save sale: " + error.message);
-  });
+
+  // First: print the bill
+  await printBillRaw(current);
+
+  // Then: save to Supabase
+  try {
+    const { error } = await supabaseClient.from("user_sales").insert([{
+      user_id: currentUser.id,
+      bill_no: current.billNo,
+      date: current.date,
+      time: current.time,
+      items: current.items,
+      total: current.total
+    }]);
+
+    // if (error) {
+    //   alert("Bill save failed: " + error.message);
+    // } else {
+    //   alert("Bill saved!");
+    // }
+  } catch (e) {
+    alert("Unexpected error saving bill: " + e.message);
+  }
+
+  // Clear and rerender UI
+  selectedItems = [];
+  renderBill();
+  renderMenu();
 }
 
 async function sendToPrinter(raw) {
